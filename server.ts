@@ -35,8 +35,10 @@ app.post("/api/parse-document", async (req, res) => {
     const extension = fileName.split(".").pop()?.toLowerCase();
 
     let extractedText = "";
+    let format: "text" | "html" | "markdown" = "text";
 
     if (extension === "pdf") {
+      format = "text";
       let extractedPdfText = "";
       try {
         let pdfParser = pdf;
@@ -92,23 +94,32 @@ app.post("/api/parse-document", async (req, res) => {
 
       extractedText = extractedPdfText;
     } else if (extension === "docx") {
-      const result = await mammoth.extractRawText({ buffer });
+      const result = await mammoth.convertToHtml({ buffer });
       extractedText = result.value || "";
+      format = "html";
     } else if (extension === "xlsx" || extension === "xls") {
       const workbook = XLSX.read(buffer, { type: "buffer" });
-      let text = "";
+      let htmlContent = "";
       workbook.SheetNames.forEach((sheetName) => {
         const sheet = workbook.Sheets[sheetName];
-        const csv = XLSX.utils.sheet_to_txt(sheet);
-        if (csv && csv.trim()) {
-          text += `--- Hoja: ${sheetName} ---\n${csv}\n\n`;
+        const tableHtml = XLSX.utils.sheet_to_html(sheet);
+        if (tableHtml && tableHtml.trim()) {
+          htmlContent += `
+            <div class="excel-sheet-container mb-8">
+              <h3 class="text-sm font-bold text-slate-800 border-b border-slate-200 pb-1 mb-3">Hoja: ${sheetName}</h3>
+              <div class="overflow-x-auto border border-slate-200 rounded-xl max-w-full">
+                ${tableHtml}
+              </div>
+            </div>`;
         }
       });
-      extractedText = text.trim();
+      extractedText = htmlContent.trim();
+      format = "html";
     } else if (["png", "jpg", "jpeg", "webp", "gif"].includes(extension || "")) {
       return res.json({
         success: true,
         text: "",
+        format: "text",
         extractionFailed: true,
         imageUrl: `data:image/${extension === "jpg" ? "jpeg" : extension};base64,${base64Data}`
       });
@@ -120,6 +131,7 @@ app.post("/api/parse-document", async (req, res) => {
       return res.json({
         success: true,
         text: "",
+        format,
         extractionFailed: true
       });
     }
@@ -127,6 +139,7 @@ app.post("/api/parse-document", async (req, res) => {
     res.json({
       success: true,
       text: extractedText,
+      format,
       extractionFailed: false
     });
   } catch (error: any) {

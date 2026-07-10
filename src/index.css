@@ -63,4 +63,103 @@
   transform-origin: 0% 0% !important;
 }
 
+/* Custom layout & styling for uploaded Word and Excel documents */
+.document-content-rendered {
+  font-family: var(--font-sans);
+  color: #334155;
+  line-height: 1.75;
+}
+
+.document-content-rendered h1 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-top: 1.75rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.4rem;
+  letter-spacing: -0.025em;
+}
+
+.document-content-rendered h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.document-content-rendered h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #334155;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.document-content-rendered p {
+  margin-bottom: 1rem;
+  text-align: justify;
+}
+
+.document-content-rendered ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.document-content-rendered ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.document-content-rendered li {
+  margin-bottom: 0.4rem !important;
+}
+
+.document-content-rendered blockquote {
+  border-left: 4px solid #6366f1 !important;
+  padding-left: 1rem !important;
+  font-style: italic !important;
+  color: #475569 !important;
+  margin: 1.25rem 0 !important;
+  background-color: #f8fafc;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+/* Excel table styling overrides */
+.document-content-rendered table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 1.25rem 0 !important;
+  font-size: 0.85rem !important;
+  background-color: #ffffff;
+}
+
+.document-content-rendered th {
+  background-color: #f1f5f9 !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  padding: 0.6rem 0.85rem !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.document-content-rendered td {
+  padding: 0.6rem 0.85rem !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.document-content-rendered tr:nth-child(even) {
+  background-color: #f8fafc !important;
+}
+
+.document-content-rendered tr:hover {
+  background-color: #f1f5f9/50 !important;
+}
+
 

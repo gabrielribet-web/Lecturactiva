@@ -319,7 +319,7 @@ export default function App() {
             extractionFailed = result.extractionFailed || false;
           }
 
-          const format: 'html' | 'markdown' | 'text' = 'text';
+          const format: 'html' | 'markdown' | 'text' = result.format || 'text';
 
           const newDoc: ReadingDocument = {
             id: `doc-${Date.now()}`,

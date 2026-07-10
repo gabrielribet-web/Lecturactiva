@@ -1225,11 +1225,20 @@ export default function DocumentViewer({
    */
   const handleHighlightAction = (color: HighlightColor, category: string) => {
     if (!floatingMenu) return;
-    const coords = pdfSelectionCoords || undefined;
-    onAddHighlight(floatingMenu.text, color, category, coords);
+    
+    if (selectedHighlight) {
+      if (onUpdateHighlightColor) {
+        onUpdateHighlightColor(selectedHighlight.id, color);
+      }
+    } else {
+      const coords = pdfSelectionCoords || undefined;
+      onAddHighlight(floatingMenu.text, color, category, coords);
+    }
+    
     setFloatingMenu(null);
     setPdfSelectionCoords(null);
     setSelectedText('');
+    onSelectHighlight(null);
     window.getSelection()?.removeAllRanges();
   };
 
