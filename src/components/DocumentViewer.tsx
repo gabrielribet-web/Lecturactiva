@@ -57,7 +57,270 @@ interface DocumentViewerProps {
   onBackToLanding?: () => void;
   onUpdateDocumentContent?: (id: string, newContent: string) => void;
   onAddCompiledDocument?: (title: string, imageUrl: string) => void;
+  onUpdateAnnotationCoords?: (id: string, x: number, y: number) => void;
+  onUpdateHighlightColor?: (id: string, color: HighlightColor) => void;
 }
+
+interface AnnotationPinMarkerProps {
+  ann: Annotation;
+  idx: number;
+  highlights: Highlight[];
+  selectedHighlight: Highlight | null;
+  onSelectHighlight: (hl: Highlight) => void;
+  onDeleteHighlight: (id: string) => void;
+  onUpdateCoords?: (id: string, x: number, y: number) => void;
+}
+
+const AnnotationPinMarker: React.FC<AnnotationPinMarkerProps> = ({
+  ann,
+  idx,
+  highlights,
+  selectedHighlight,
+  onSelectHighlight,
+  onDeleteHighlight
+}) => {
+  const [isHoveredOver1s, setIsHoveredOver1s] = useState(false);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isSelected = selectedHighlight?.id === ann.highlightId;
+
+  const handleMouseEnter = () => {
+    if (isHoveredOver1s || isSelected) return;
+    
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+    }
+
+    hoverTimerRef.current = setTimeout(() => {
+      setIsHoveredOver1s(true);
+    }, 1000);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setIsHoveredOver1s(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      className={`absolute group transition-all duration-300 ${isSelected ? 'z-40 scale-105' : 'z-20'}`}
+      style={{
+        left: `${ann.x}%`,
+        top: `${ann.y}%`,
+        transform: 'translate(-50%, -50%)'
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        const hl = highlights.find(h => h.id === ann.highlightId);
+        if (hl) onSelectHighlight(hl);
+      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* 
+        The orange dot/pin:
+        - Small orange dot: w-1.5 h-1.5 bg-orange-500 rounded-full shadow-xs
+        - If hovered >1s (isHoveredOver1s): w-7 h-7, bg-orange-600, ring-2 ring-orange-400
+      */}
+      <div 
+        className={`rounded-full text-white flex items-center justify-center transition-all duration-500 relative cursor-pointer ${
+          isHoveredOver1s
+            ? 'w-7 h-7 bg-orange-600 ring-2 ring-orange-400 ring-offset-1 scale-110 shadow-lg'
+            : 'w-1.5 h-1.5 bg-orange-500 scale-100 hover:scale-125 shadow-xs'
+        }`}
+        title="Nota al Margen"
+      >
+        {/* Comment icon only visible when hovered over 1s */}
+        <div className={`transition-all duration-300 ${isHoveredOver1s ? 'opacity-100 scale-100' : 'opacity-0 scale-50 pointer-events-none'}`}>
+          {isHoveredOver1s && <MessageSquare size={11} strokeWidth={3} />}
+        </div>
+
+        {/* Pulsing ring only when selected */}
+        {isSelected && (
+          <div className="absolute inset-0 rounded-full border border-orange-400/60 animate-ping opacity-40 pointer-events-none" />
+        )}
+      </div>
+
+      {/* Popover */}
+      <div className={`absolute left-1/2 bottom-8 -translate-x-1/2 w-56 bg-slate-950/95 backdrop-blur-sm text-white text-[11px] p-3 rounded-2xl shadow-2xl transition-all duration-200 z-50 flex flex-col space-y-1.5 ${
+        isSelected
+          ? 'opacity-100 scale-100 pointer-events-auto' 
+          : 'opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100'
+      }`}>
+        <div className="flex items-center justify-between border-b border-white/10 pb-1">
+          <span className="font-extrabold text-[9px] tracking-wider text-orange-400 uppercase flex items-center gap-1">💬 Nota {idx + 1}</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const hl = highlights.find(h => h.id === ann.highlightId);
+              if (hl) onDeleteHighlight(hl.id);
+            }}
+            className="text-white/60 hover:text-red-400 font-bold text-[9px] cursor-pointer"
+          >
+            Eliminar
+          </button>
+        </div>
+        <p className="leading-normal text-white/95 font-medium break-words text-left">{ann.comment}</p>
+      </div>
+    </div>
+  );
+};
+
+interface VisualHighlightMarkerProps {
+  hl: Highlight;
+  selectedHighlight: Highlight | null;
+  onSelectHighlight: (hl: Highlight | null) => void;
+  onDeleteHighlight: (id: string) => void;
+  editingHighlightColorId: string | null;
+  setEditingHighlightColorId: (id: string | null) => void;
+  colorClasses: Record<HighlightColor, { bg: string; border: string; hover: string; text: string; hex: string; lightHex: string }>;
+  colorLabels: Record<HighlightColor, string>;
+  onUpdateHighlightColor?: (id: string, color: HighlightColor) => void;
+}
+
+const VisualHighlightMarker: React.FC<VisualHighlightMarkerProps> = ({
+  hl,
+  selectedHighlight,
+  onSelectHighlight,
+  onDeleteHighlight,
+  editingHighlightColorId,
+  setEditingHighlightColorId,
+  colorClasses,
+  colorLabels,
+  onUpdateHighlightColor
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isHovered) {
+      setShowTooltip(true);
+      timer = setTimeout(() => {
+        setShowTooltip(false);
+      }, 3000);
+    } else {
+      setShowTooltip(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isHovered]);
+
+  const labelText = colorLabels[hl.color]?.trim() || '';
+
+  return (
+    <div
+      data-visual-highlight-id={hl.id}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelectHighlight(hl);
+        setEditingHighlightColorId(editingHighlightColorId === hl.id ? null : hl.id);
+      }}
+      onMouseDown={(e) => {
+        // Prevent parent box drawing while clicking on highlight
+        e.stopPropagation();
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`absolute border transition-all hover:ring-2 hover:ring-indigo-500/50 group cursor-pointer ${
+        selectedHighlight?.id === hl.id 
+          ? 'ring-4 ring-indigo-600 ring-offset-2 z-40 scale-[1.03] shadow-2xl animate-pulse border-indigo-600' 
+          : (colorClasses[hl.color]?.border || 'border-yellow-400')
+      } ${colorClasses[hl.color]?.bg || 'bg-yellow-250/50'}`}
+      style={{
+        left: `${hl.x}%`,
+        top: `${hl.y}%`,
+        width: `${hl.w}%`,
+        height: `${hl.h}%`,
+      }}
+    >
+      {/* Hover delete */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDeleteHighlight(hl.id); }}
+        className="absolute -top-3 -right-3 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg cursor-pointer transition-transform scale-0 group-hover:scale-100 z-50"
+      >
+        ✕
+      </button>
+
+      {/* Color selector popup */}
+      {editingHighlightColorId === hl.id && (
+        <div 
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-slate-900/95 backdrop-blur-xs text-white p-2 rounded-2xl shadow-2xl flex items-center gap-2 z-50 border border-slate-700/80 animate-in fade-in zoom-in-95 duration-150"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {(['yellow', 'green', 'blue', 'orange', 'red'] as HighlightColor[]).map((c) => {
+            const isActive = !!colorLabels[c]?.trim();
+            return (
+              <button
+                key={c}
+                type="button"
+                disabled={!isActive}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onUpdateHighlightColor) {
+                    onUpdateHighlightColor(hl.id, c);
+                  }
+                  setEditingHighlightColorId(null);
+                }}
+                className={`w-6 h-6 rounded-full transition-all duration-200 border-2 ${
+                  isActive 
+                    ? 'cursor-pointer hover:scale-125' 
+                    : 'opacity-20 cursor-not-allowed hover:scale-100'
+                } ${
+                  hl.color === c ? 'border-white scale-110 shadow-lg ring-2 ring-indigo-500' : 'border-transparent hover:border-white/40'
+                } ${
+                  c === 'yellow' ? 'bg-yellow-400' :
+                  c === 'green' ? 'bg-green-500' :
+                  c === 'blue' ? 'bg-blue-500' :
+                  c === 'orange' ? 'bg-orange-500' :
+                  'bg-red-500'
+                }`}
+                title={
+                  isActive 
+                    ? `Cambiar color a ${colorLabels[c] || c}` 
+                    : `Color ${c} inactivo (sin etiqueta escrita)`
+                }
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* 3 Seconds Color Label Tooltip */}
+      {showTooltip && labelText && (
+        <div 
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-slate-900/90 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-xl z-50 border border-slate-700 max-w-[150px] truncate animate-in fade-in slide-in-from-bottom-1 duration-200 pointer-events-none select-none text-center"
+        >
+          {labelText}
+        </div>
+      )}
+
+      {hl.color === 'orange' && (
+        <div 
+          className="absolute top-0.5 left-0.5 bg-orange-500 text-white rounded-md p-0.5 flex items-center justify-center shadow-xs border border-orange-400 select-none scale-75 origin-top-left pointer-events-none"
+          title="Nota al Margen vinculada"
+        >
+          <MessageSquare size={10} strokeWidth={3} />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function DocumentViewer({
   document,
@@ -80,7 +343,9 @@ export default function DocumentViewer({
   studentName,
   onBackToLanding,
   onUpdateDocumentContent,
-  onAddCompiledDocument
+  onAddCompiledDocument,
+  onUpdateAnnotationCoords,
+  onUpdateHighlightColor
 }: DocumentViewerProps) {
   // Manual correction / Extraction Fallback state
   const [manualText, setManualText] = useState(document.content);
@@ -428,6 +693,7 @@ export default function DocumentViewer({
 
   const handleImageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    setEditingHighlightColorId(null);
     if (document.hasPdfRaw && (enabledStrategies.highlight || enabledStrategies.annotation) && pdfSelectionMode === 'text') {
       // Allow native textLayer selection in PDF mode instead of visual dragging box
       return;
@@ -686,6 +952,61 @@ export default function DocumentViewer({
   
   // Highlighting selected text state
   const [selectedText, setSelectedText] = useState('');
+  const [editingHighlightColorId, setEditingHighlightColorId] = useState<string | null>(null);
+
+  // Tooltip for text-based highlights
+  const [textTooltip, setTextTooltip] = useState<{ label: string; x: number; y: number } | null>(null);
+  const textTooltipTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTextMouseOver = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const highlightId = target.getAttribute('data-highlight-id');
+    // Only process text highlights (with data-highlight-id, NOT data-visual-highlight-id)
+    if (highlightId && !target.hasAttribute('data-visual-highlight-id')) {
+      const hl = highlights.find(h => h.id === highlightId);
+      if (hl) {
+        const label = colorLabels[hl.color]?.trim();
+        if (label) {
+          const rect = target.getBoundingClientRect();
+          const containerRect = viewerRef.current?.getBoundingClientRect();
+          if (containerRect) {
+            if (textTooltipTimerRef.current) clearTimeout(textTooltipTimerRef.current);
+            
+            setTextTooltip({
+              label,
+              x: rect.left - containerRect.left + rect.width / 2,
+              y: rect.top - containerRect.top - 10 + (viewerRef.current?.scrollTop || 0),
+            });
+
+            textTooltipTimerRef.current = setTimeout(() => {
+              setTextTooltip(null);
+            }, 3000);
+          }
+        }
+      }
+    }
+  };
+
+  const handleTextMouseOut = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.getAttribute('data-highlight-id')) {
+      if (textTooltipTimerRef.current) clearTimeout(textTooltipTimerRef.current);
+      setTextTooltip(null);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (textTooltipTimerRef.current) {
+        clearTimeout(textTooltipTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Clear editing color picker on document/page changes
+  useEffect(() => {
+    setEditingHighlightColorId(null);
+  }, [currentPageIndex, document.id]);
   
   // Strategy 1: Highlight Custom Color Labels (Defaults to blank as per user instruction)
   const [colorLabels, setColorLabels] = useState<Record<HighlightColor, string>>(() => {
@@ -1915,10 +2236,24 @@ export default function DocumentViewer({
                 >
                   {/* Dynamic Color circle acting as the pencil trigger */}
                   <button
-                    onClick={() => handlePaletteHighlight(color)}
-                    className="w-5.5 h-5.5 rounded-full border border-black/10 shrink-0 hover:scale-110 active:scale-95 transition-transform shadow-xs relative flex items-center justify-center cursor-pointer"
+                    onClick={() => {
+                      if (!colorLabels[color]?.trim()) {
+                        alert('Este color no está activo porque no tiene una etiqueta escrita.');
+                        return;
+                      }
+                      handlePaletteHighlight(color);
+                    }}
+                    className={`w-5.5 h-5.5 rounded-full border border-black/10 shrink-0 transition-all duration-200 shadow-xs relative flex items-center justify-center cursor-pointer ${
+                      !colorLabels[color]?.trim() 
+                        ? 'opacity-30 cursor-not-allowed scale-90 hover:scale-90' 
+                        : 'hover:scale-110 active:scale-95'
+                    }`}
                     style={{ backgroundColor: style.hex }}
-                    title={`Haga clic para subrayar texto como: ${colorLabels[color]}`}
+                    title={
+                      colorLabels[color]?.trim() 
+                        ? `Haga clic para subrayar texto como: ${colorLabels[color]}`
+                        : 'Color inactivo (escribe una etiqueta a la derecha para activarlo)'
+                    }
                   >
                     <PenTool size={10} className="text-slate-900 opacity-60" />
                   </button>
@@ -2134,6 +2469,8 @@ export default function DocumentViewer({
           ref={viewerRef}
           onMouseUp={handleMouseUp}
           onClick={handleViewerClick}
+          onMouseOver={handleTextMouseOver}
+          onMouseOut={handleTextMouseOut}
           className="flex-1 overflow-y-auto px-8 py-6 relative select-text"
           style={{ minHeight: '350px' }}
         >
@@ -2404,91 +2741,32 @@ export default function DocumentViewer({
 
                 {/* Highlights Overlay (Filtered by currentPageIndex) */}
                 {highlights.filter(h => h.documentId === document.id && h.x !== undefined && (h.pageIndex === currentPageIndex || (currentPageIndex === 0 && h.pageIndex === undefined))).map(hl => (
-                  <div
+                  <VisualHighlightMarker
                     key={hl.id}
-                    data-visual-highlight-id={hl.id}
-                    className={`absolute border transition-all hover:ring-2 hover:ring-indigo-500/50 group ${
-                      selectedHighlight?.id === hl.id 
-                        ? 'ring-4 ring-indigo-600 ring-offset-2 z-40 scale-[1.03] shadow-2xl animate-pulse border-indigo-600' 
-                        : (colorClasses[hl.color]?.border || 'border-yellow-400')
-                    } ${colorClasses[hl.color]?.bg || 'bg-yellow-250/50'}`}
-                    style={{
-                      left: `${hl.x}%`,
-                      top: `${hl.y}%`,
-                      width: `${hl.w}%`,
-                      height: `${hl.h}%`,
-                    }}
-                  >
-                    {/* Hover delete */}
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onDeleteHighlight(hl.id); }}
-                      className="absolute -top-3 -right-3 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg cursor-pointer transition-transform scale-0 group-hover:scale-100"
-                    >
-                      ✕
-                    </button>
-
-                    {hl.color === 'orange' && (
-                      <div 
-                        className="absolute top-0.5 left-0.5 bg-orange-500 text-white rounded-md p-0.5 flex items-center justify-center shadow-xs border border-orange-400 select-none scale-75 origin-top-left pointer-events-none"
-                        title="Nota al Margen vinculada"
-                      >
-                        <MessageSquare size={10} strokeWidth={3} />
-                      </div>
-                    )}
-                  </div>
+                    hl={hl}
+                    selectedHighlight={selectedHighlight}
+                    onSelectHighlight={onSelectHighlight}
+                    onDeleteHighlight={onDeleteHighlight}
+                    editingHighlightColorId={editingHighlightColorId}
+                    setEditingHighlightColorId={setEditingHighlightColorId}
+                    colorClasses={colorClasses}
+                    colorLabels={colorLabels}
+                    onUpdateHighlightColor={onUpdateHighlightColor}
+                  />
                 ))}
 
                 {/* Annotation Pins (Filtered by currentPageIndex) */}
                 {annotations.filter(a => a.documentId === document.id && a.x !== undefined && (a.pageIndex === currentPageIndex || (currentPageIndex === 0 && a.pageIndex === undefined))).map((ann, idx) => (
-                  <div
+                  <AnnotationPinMarker
                     key={ann.id}
-                    className={`absolute group transition-all duration-300 ${selectedHighlight?.id === ann.highlightId ? 'z-30 scale-110' : 'z-10'}`}
-                    style={{
-                      left: `${ann.x}%`,
-                      top: `${ann.y}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const hl = highlights.find(h => h.id === ann.highlightId);
-                      if (hl) onSelectHighlight(hl);
-                    }}
-                  >
-                    <div className={`w-6 h-6 rounded-full text-white flex items-center justify-center shadow-md cursor-pointer transition-all duration-300 relative ${
-                      selectedHighlight?.id === ann.highlightId 
-                        ? 'bg-orange-600 ring-2 ring-orange-400 ring-offset-1 scale-110' 
-                        : 'bg-orange-500 hover:bg-orange-600 hover:scale-110'
-                    }`}
-                    title="Ver Nota al Margen"
-                    >
-                      <MessageSquare size={10} strokeWidth={3} />
-                      <div className="absolute inset-0 rounded-full border border-orange-400/50 animate-ping opacity-30 pointer-events-none" />
-                    </div>
-
-                    {/* Popover */}
-                    <div className={`absolute left-1/2 bottom-8 -translate-x-1/2 w-56 bg-slate-950/95 backdrop-blur-sm text-white text-[11px] p-3 rounded-2xl shadow-2xl transition-all duration-200 z-20 flex flex-col space-y-1.5 ${
-                      selectedHighlight?.id === ann.highlightId 
-                        ? 'opacity-100 scale-100 pointer-events-auto' 
-                        : 'opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100'
-                    }`}>
-                      <div className="flex items-center justify-between border-b border-white/10 pb-1">
-                        <span className="font-extrabold text-[9px] tracking-wider text-orange-400 uppercase flex items-center gap-1">💬 Nota {idx + 1}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const hl = highlights.find(h => h.id === ann.highlightId);
-                            if (hl) onDeleteHighlight(hl.id);
-                          }}
-                          className="text-white/60 hover:text-red-400 font-bold text-[9px] cursor-pointer"
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                      <p className="leading-normal text-white/95 font-medium break-words text-left">{ann.comment}</p>
-                    </div>
-                  </div>
+                    ann={ann}
+                    idx={idx}
+                    highlights={highlights}
+                    selectedHighlight={selectedHighlight}
+                    onSelectHighlight={onSelectHighlight}
+                    onDeleteHighlight={onDeleteHighlight}
+                    onUpdateCoords={onUpdateAnnotationCoords || (() => {})}
+                  />
                 ))}
 
                 {/* Prediction Pins (Filtered by currentPageIndex) */}
@@ -2649,6 +2927,20 @@ export default function DocumentViewer({
             </div>
           )}
 
+          {/* TEXT HIGHLIGHTS FLOATING HOVER TOOLTIP */}
+          {textTooltip && (
+            <div 
+              className="absolute bg-slate-900/90 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-xl z-50 border border-slate-700 max-w-[150px] truncate animate-in fade-in slide-in-from-bottom-1 duration-200 pointer-events-none select-none text-center"
+              style={{
+                left: `${textTooltip.x}px`,
+                top: `${textTooltip.y}px`,
+                transform: 'translate(-50%, -100%)',
+              }}
+            >
+              {textTooltip.label}
+            </div>
+          )}
+
           {/* FLOATING TEXT SELECTION PALETTE */}
           {floatingMenu && floatingMenu.visible && (
             <div 
@@ -2718,16 +3010,28 @@ export default function DocumentViewer({
                     <span>Subrayar:</span>
                   </span>
                   
-                  {visibleColors.map(color => (
-                    <button 
-                      key={color}
-                      id={`btn-highlight-${color}`}
-                      onClick={() => handleHighlightAction(color, colorLabels[color] || 'Subrayado')}
-                      className="w-7 h-7 rounded-full border-2 border-white hover:scale-110 transition-transform cursor-pointer shrink-0"
-                      style={{ backgroundColor: colorClasses[color].hex }}
-                      title={colorLabels[color] || 'Etiqueta el color'}
-                    />
-                  ))}
+                  {visibleColors.map(color => {
+                    const isActive = !!colorLabels[color]?.trim();
+                    return (
+                      <button 
+                        key={color}
+                        id={`btn-highlight-${color}`}
+                        disabled={!isActive}
+                        onClick={() => handleHighlightAction(color, colorLabels[color] || 'Subrayado')}
+                        className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
+                          isActive 
+                            ? 'border-white hover:scale-110 cursor-pointer opacity-100' 
+                            : 'border-slate-600 opacity-20 cursor-not-allowed hover:scale-100'
+                        }`}
+                        style={{ backgroundColor: colorClasses[color].hex }}
+                        title={
+                          isActive 
+                            ? (colorLabels[color] || 'Etiqueta el color') 
+                            : 'Color inactivo (sin etiqueta escrita)'
+                        }
+                      />
+                    );
+                  })}
 
                   {/* Divider and Delete Button */}
                   <div className="w-[1px] h-5 bg-slate-700 mx-1 shrink-0" />

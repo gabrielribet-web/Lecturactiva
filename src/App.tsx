@@ -653,6 +653,39 @@ export default function App() {
     triggerCloudSync();
   };
 
+  const handleUpdateAnnotationCoords = (annotationId: string, x: number, y: number) => {
+    const targetAnn = annotations.find(ann => ann.id === annotationId);
+    if (!targetAnn) return;
+
+    const updatedAnnotations = annotations.map(ann => {
+      if (ann.id === annotationId) {
+        return { ...ann, x, y };
+      }
+      return ann;
+    });
+    setAnnotations(updatedAnnotations);
+    SyncManager.saveAnnotations(updatedAnnotations);
+
+    if (targetAnn.highlightId) {
+      const updatedHighlights = highlights.map(hl => {
+        if (hl.id === targetAnn.highlightId) {
+          const w = hl.w || 3;
+          const h = hl.h || 3;
+          return {
+            ...hl,
+            x: x - w / 2,
+            y: y - h / 2
+          };
+        }
+        return hl;
+      });
+      setHighlights(updatedHighlights);
+      SyncManager.saveHighlights(updatedHighlights);
+    }
+
+    triggerCloudSync();
+  };
+
   const handleAddPrediction = (text: string, coords?: { x: number; y: number }) => {
     if (!selectedDoc) return;
 
@@ -1000,6 +1033,7 @@ export default function App() {
                   onGenerateAIReport={handleGenerateTeacherReport}
                   studentName={studentName}
                   onBackToLanding={() => setSelectedDoc(null)}
+                  onUpdateAnnotationCoords={handleUpdateAnnotationCoords}
                 />
               </div>
             </div>
