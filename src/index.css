@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom highlight markers */
+.highlight-node {
+  background-size: 100% 200%;
+  background-position: 100% 0%;
+  transition: background-position 0.2s ease, transform 0.1s ease;
+}
+
+.highlight-node:hover {
+  background-position: 100% 100%;
+  transform: translateY(-1px);
+}
+
+/* Print layout overrides so only the report card is printed */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+  .print\:border-none {
+    border: none !important;
+  }
+  .print\:p-0 {
+    padding: 0 !important;
+  }
+}
+
+/* pdf.js textLayer styling */
+.textLayer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1.0;
+  pointer-events: auto;
+}
+
+.textLayer ::selection {
+  background: rgba(99, 102, 241, 0.35) !important;
+}
+
+.textLayer span, .textLayer br {
+  color: transparent !important;
+  position: absolute !important;
+  white-space: pre !important;
+  cursor: text !important;
+  transform-origin: 0% 0% !important;
+}
+
+

@@ -1,0 +1,6 @@
+{
+  "name": "Visualizador de Lectura Activa",
+  "description": "Visualizador interactivo de textos en varios formatos con estrategias de lectura (subrayado de colores, notas al margen, predicciones), exportación académica, sincronización en la nube y modo offline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
