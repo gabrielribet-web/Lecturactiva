@@ -620,6 +620,23 @@ export default function App() {
     triggerCloudSync();
   };
 
+  const handleUpdateHighlightColor = (id: string, color: HighlightColor) => {
+    const updatedHighlights = highlights.map(h => {
+      if (h.id === id) {
+        return { ...h, color };
+      }
+      return h;
+    });
+    setHighlights(updatedHighlights);
+    SyncManager.saveHighlights(updatedHighlights);
+
+    if (selectedHighlight?.id === id) {
+      setSelectedHighlight({ ...selectedHighlight, color });
+    }
+
+    triggerCloudSync();
+  };
+
   const handleAddAnnotation = (highlightId: string, comment: string, coords?: { x: number; y: number; pageIndex?: number }) => {
     if (!selectedDoc) return;
 
@@ -1034,6 +1051,7 @@ export default function App() {
                   studentName={studentName}
                   onBackToLanding={() => setSelectedDoc(null)}
                   onUpdateAnnotationCoords={handleUpdateAnnotationCoords}
+                  onUpdateHighlightColor={handleUpdateHighlightColor}
                 />
               </div>
             </div>
