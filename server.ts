@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -20,13 +21,9 @@ const app = express();
 const PORT = 3000;
 const DB_FILE = path.join(process.cwd(), "data-store.json");
 
-const DEFAULT_AI_HEADERS = {
-  "User-Agent": "aistudio-build"
-};
-
 function createAIModel(apiKey: string, modelName = "gemini-3.5-flash") {
   const ai = new GoogleGenerativeAI(apiKey);
-  return ai.getGenerativeModel({ model: modelName }, { customHeaders: DEFAULT_AI_HEADERS });
+  return ai.getGenerativeModel({ model: modelName });
 }
 
 // Middleware to parse JSON
@@ -331,7 +328,7 @@ app.post("/api/ai/analyze", async (req, res) => {
     }
 
     const response = await model.generateContent({
-      contents: prompt,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
       systemInstruction,
       generationConfig: {
         temperature: 0.7
@@ -375,7 +372,7 @@ app.post("/api/ai/report", async (req, res) => {
     const prompt = `Analiza el siguiente trabajo de lectura activa del estudiante y genera el informe académico correspondiente:\n\n${studentWorkSummary}`;
 
     const response = await model.generateContent({
-      contents: prompt,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
       systemInstruction,
       generationConfig: {
         responseMimeType: "application/json",
@@ -433,7 +430,7 @@ app.post("/api/ai/optimize-document-text", async (req, res) => {
     const prompt = `Por favor, limpia y optimiza la legibilidad del siguiente texto titulado "${title || "Documento sin título"}" sin omitir información:\n\n${text}`;
 
     const response = await model.generateContent({
-      contents: prompt,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
       systemInstruction,
       generationConfig: {
         temperature: 0.3
