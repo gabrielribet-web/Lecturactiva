@@ -7,7 +7,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ReadingDocument, Highlight, Annotation, Prediction, SyncPayload } from "./src/types";
 import { preloadedDocuments } from "./src/utils/preloadedDocs";
 import { createRequire } from "module";
@@ -19,6 +19,15 @@ import * as XLSX from "xlsx";
 const app = express();
 const PORT = 3000;
 const DB_FILE = path.join(process.cwd(), "data-store.json");
+
+const DEFAULT_AI_HEADERS = {
+  "User-Agent": "aistudio-build"
+};
+
+function createAIModel(apiKey: string, modelName = "gemini-3.5-flash") {
+  const ai = new GoogleGenerativeAI(apiKey);
+  return ai.getGenerativeModel({ model: modelName }, { customHeaders: DEFAULT_AI_HEADERS });
+}
 
 // Middleware to parse JSON
 app.use(express.json({ limit: '50mb' }));
@@ -61,16 +70,8 @@ app.post("/api/parse-document", async (req, res) => {
       if ((!extractedPdfText.trim() || extractedPdfText.trim().length < 150) && apiKey && apiKey !== "MY_GEMINI_API_KEY") {
         try {
           console.log("PDF parsed text was empty or too short. Performing high-fidelity Gemini PDF OCR...");
-          const ai = new GoogleGenAI({
-            apiKey,
-            httpOptions: {
-              headers: {
-                'User-Agent': 'aistudio-build',
-              }
-            }
-          });
-          const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
+          const model = createAIModel(apiKey, "gemini-3.5-flash");
+          const response = await model.generateContent({
             contents: [
               {
                 inlineData: {
@@ -83,8 +84,9 @@ app.post("/api/parse-document", async (req, res) => {
               }
             ]
           });
-          if (response.text && response.text.trim()) {
-            extractedPdfText = response.text;
+          const extracted = response.response.text();
+          if (extracted && extracted.trim()) {
+            extractedPdfText = extracted;
             console.log("Successfully extracted text from PDF using Gemini OCR.");
           }
         } catch (geminiErr: any) {
@@ -310,15 +312,7 @@ app.post("/api/ai/analyze", async (req, res) => {
       return res.status(400).json({ success: false, error: "Selección de texto vacía" });
     }
 
-    // Lazy initialization with custom user-agent for telemetry
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
+    const model = createAIModel(apiKey, "gemini-3.5-flash");
 
     let systemInstruction = "";
     let prompt = "";
@@ -336,18 +330,17 @@ app.post("/api/ai/analyze", async (req, res) => {
       return res.status(400).json({ success: false, error: "Tipo de análisis no soportado" });
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await model.generateContent({
       contents: prompt,
-      config: {
-        systemInstruction,
+      systemInstruction,
+      generationConfig: {
         temperature: 0.7
       }
     });
 
     res.json({
       success: true,
-      result: response.text || "No se pudo generar una respuesta."
+      result: response.response.text() || "No se pudo generar una respuesta."
     });
   } catch (error: any) {
     console.error("AI Analyze error:", error);
@@ -368,14 +361,7 @@ app.post("/api/ai/report", async (req, res) => {
   try {
     const { documentTitle, highlights, annotations, predictions } = req.body;
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
+    const model = createAIModel(apiKey, "gemini-3.5-flash");
 
     const studentWorkSummary = `
       Documento leído: "${documentTitle}"
@@ -388,11 +374,10 @@ app.post("/api/ai/report", async (req, res) => {
 
     const prompt = `Analiza el siguiente trabajo de lectura activa del estudiante y genera el informe académico correspondiente:\n\n${studentWorkSummary}`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await model.generateContent({
       contents: prompt,
-      config: {
-        systemInstruction,
+      systemInstruction,
+      generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
           type: "OBJECT" as any,
@@ -412,7 +397,7 @@ app.post("/api/ai/report", async (req, res) => {
       }
     });
 
-    const parsedResponse = JSON.parse(response.text || "{}");
+    const parsedResponse = JSON.parse(response.response.text() || "{}");
 
     res.json({
       success: true,
@@ -442,30 +427,22 @@ app.post("/api/ai/optimize-document-text", async (req, res) => {
       return res.status(400).json({ success: false, error: "El texto a optimizar está vacío." });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
+    const model = createAIModel(apiKey, "gemini-3.5-flash");
 
     const systemInstruction = "Eres un especialista académico en edición de textos e inteligencia lectora. Tu misión es tomar el texto de un documento (el cual puede venir con caracteres extraños, palabras unidas, saltos de línea incorrectos o desordenado debido al procesamiento de PDF) y optimizar su legibilidad, corrigiendo errores tipográficos y ortográficos, separando párrafos correctamente y garantizando un flujo continuo y estructurado de lectura. MUY IMPORTANTE: No resumas el texto, no omitas contenido valioso y no añadas comentarios introductorios o aclaratorios personales. Devuelve únicamente el texto limpio y optimizado, listo para leer y subrayar.";
     const prompt = `Por favor, limpia y optimiza la legibilidad del siguiente texto titulado "${title || "Documento sin título"}" sin omitir información:\n\n${text}`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await model.generateContent({
       contents: prompt,
-      config: {
-        systemInstruction,
+      systemInstruction,
+      generationConfig: {
         temperature: 0.3
       }
     });
 
     res.json({
       success: true,
-      optimizedText: response.text || text
+      optimizedText: response.response.text() || text
     });
   } catch (error: any) {
     console.error("AI Optimize Text error:", error);

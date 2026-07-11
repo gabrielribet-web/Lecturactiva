@@ -7,6 +7,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ReadingDocument, Highlight, HighlightColor, Annotation, Prediction } from '../types';
 import { parseMarkdown } from '../utils/markdownParser';
 import { ImageStore } from '../utils/syncManager';
+
+export const createHighlightRegex = (text: string) => {
+  const escapedText = text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  return new RegExp(`(?![^<]*>)(?<![\\p{L}\\p{N}_])(${escapedText})(?![\\p{L}\\p{N}_])`, 'giu');
+};
+
 import { 
   Sparkles, 
   HelpCircle, 
@@ -1773,7 +1779,7 @@ export default function DocumentViewer({
 
     sortedHighlights.forEach(h => {
       const escapedText = h.text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const regex = new RegExp(`(?![^<]*>)(${escapedText})`, 'gi');
+      const regex = new RegExp(`(?![^<]*>)(^|[^\\p{L}\\p{N}_])(${escapedText})(?=$|[^\\p{L}\\p{N}_])`, 'giu');
 
       const style = colorClasses[h.color] || colorClasses.yellow;
       const isSelected = selectedHighlight?.id === h.id;
