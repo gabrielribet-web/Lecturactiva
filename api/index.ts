@@ -43,7 +43,8 @@ app.post('/api/parse-document', async (req, res) => {
       let extractedPdfText = '';
       try {
         const requireModule = createRequire(import.meta.url);
-        const pdf = requireModule('pdf-parse');
+        const pdfModuleName = 'pdf-parse';
+        const pdf = requireModule(pdfModuleName);
         let pdfParser: any = pdf;
         if (typeof pdfParser !== 'function' && pdfParser && typeof pdfParser.default === 'function') {
           pdfParser = pdfParser.default;
@@ -65,13 +66,18 @@ app.post('/api/parse-document', async (req, res) => {
           const response = await model.generateContent({
             contents: [
               {
-                inlineData: {
-                  mimeType: 'application/pdf',
-                  data: base64Data
-                }
-              },
-              {
-                text: 'Extrae de forma limpia, continua y estructurada todo el texto en español de este documento PDF. Respeta los párrafos, las secciones de los títulos y el orden de lectura natural de arriba hacia abajo y de izquierda a derecha. No incluyas comentarios, explicaciones del sistema ni resúmenes; devuelve única y exclusivamente el texto del documento original.'
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'application/pdf',
+                      data: base64Data
+                    }
+                  },
+                  {
+                    text: 'Extrae de forma limpia, continua y estructurada todo el texto en español de este documento PDF. Respeta los párrafos, las secciones de los títulos y el orden de lectura natural de arriba hacia abajo y de izquierda a derecha. No incluyas comentarios, explicaciones del sistema ni resúmenes; devuelve única y exclusivamente el texto del documento original.'
+                  }
+                ]
               }
             ]
           });
