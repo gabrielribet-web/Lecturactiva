@@ -12,10 +12,19 @@ import * as XLSX from 'xlsx';
 
 const app = express();
 
-// Use Vercel's writable /tmp directory for DB storage when in production Vercel environments
-const DB_FILE = process.env.VERCEL
+const DB_FILE = (process.env.VERCEL && process.env.VERCEL_ENV !== 'development')
   ? path.join('/tmp', 'data-store.json')
   : path.join(process.cwd(), 'data-store.json');
+
+// Asegurar que el directorio contenedor exista (especialmente para entornos Vercel en la nube)
+try {
+  const dbDir = path.dirname(DB_FILE);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+} catch (dirErr) {
+  console.error('No se pudo crear el directorio para la base de datos:', dirErr);
+}
 
 function createAIModel(apiKey: string, modelName = 'gemini-3.5-flash') {
   const ai = new GoogleGenerativeAI(apiKey);
@@ -294,7 +303,7 @@ app.post('/api/sync', (req, res) => {
       predictions: mergedState.predictions,
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Sync error:', error);
     res.status(500).json({ success: false, error: 'Internal sync error' });
   }
