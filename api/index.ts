@@ -7,8 +7,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ReadingDocument, Highlight, Annotation, Prediction, SyncPayload } from '../src/types';
 import { preloadedDocuments } from '../src/utils/preloadedDocs';
 
-const requireModule = createRequire(import.meta.url);
-const pdf = requireModule('pdf-parse');
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 
@@ -44,6 +42,8 @@ app.post('/api/parse-document', async (req, res) => {
       format = 'text';
       let extractedPdfText = '';
       try {
+        const requireModule = createRequire(import.meta.url);
+        const pdf = requireModule('pdf-parse');
         let pdfParser: any = pdf;
         if (typeof pdfParser !== 'function' && pdfParser && typeof pdfParser.default === 'function') {
           pdfParser = pdfParser.default;
@@ -55,7 +55,7 @@ app.post('/api/parse-document', async (req, res) => {
           console.warn('Librería pdf-parse no exportó una función ejecutable directa.');
         }
       } catch (pdfErr: any) {
-        console.error('Error al parsear PDF con PDFParse:', pdfErr);
+        console.error('Error al parsear PDF con PDFParse (entorno serverless Vercel):', pdfErr);
       }
 
       const apiKey = process.env.GEMINI_API_KEY;
